@@ -14,7 +14,7 @@ export default function EventsPage() {
   const [search, setSearch] = useState('');
   const [sport, setSport] = useState('');
   const [city, setCity] = useState('');
-  const [showPast, setShowPast] = useState(false);
+  const [showPast, setShowPast] = useState<'upcoming' | 'past' | 'all'>('all');
 
   useEffect(() => {
     fetch(ENDPOINTS.EVENTS)
@@ -30,8 +30,8 @@ export default function EventsPage() {
 
   const filtered = events.filter((e: any) => {
     const isPast = e.date && new Date(e.date) < now;
-    if (!showPast && isPast) return false;
-    if (showPast && !isPast) return false;
+    if (showPast === 'upcoming' && isPast) return false;
+    if (showPast === 'past' && !isPast) return false;
     if (sport && e.sport?.toLowerCase() !== sport.toLowerCase()) return false;
     if (city && e.city !== city) return false;
     if (search) {
@@ -39,6 +39,17 @@ export default function EventsPage() {
       if (!e.title?.toLowerCase().includes(q) && !e.location?.toLowerCase().includes(q) && !e.city?.toLowerCase().includes(q)) return false;
     }
     return true;
+  }).sort((a: any, b: any) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    const aTime = new Date(a.date).getTime();
+    const bTime = new Date(b.date).getTime();
+    // Upcoming events first, then past in reverse order
+    const aIsPast = aTime < now.getTime();
+    const bIsPast = bTime < now.getTime();
+    if (!aIsPast && !bIsPast) return aTime - bTime;
+    if (aIsPast && bIsPast) return bTime - aTime;
+    return aIsPast ? 1 : -1;
   });
 
   return (
@@ -56,16 +67,14 @@ export default function EventsPage() {
         )}
       </div>
 
-      {/* Upcoming / Past toggle */}
+      {/* Filter tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-5">
-        <button onClick={() => setShowPast(false)}
-          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${!showPast ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
-          Upcoming
-        </button>
-        <button onClick={() => setShowPast(true)}
-          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${showPast ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
-          Past
-        </button>
+        {(['all', 'upcoming', 'past'] as const).map(tab => (
+          <button key={tab} onClick={() => setShowPast(tab)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all capitalize ${showPast === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>
+            {tab}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
