@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { ENDPOINTS } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { getSportEmoji, formatDate } from '@/lib/utils';
-import { MapPin, Users, Calendar, ArrowLeft, Send, Loader2, Pencil, Check, X } from 'lucide-react';
+import { MapPin, Users, Calendar, ArrowLeft, Send, Loader2, Pencil, Check, X, Star, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const RATING_CATEGORIES = ['skill', 'sportsmanship', 'communication', 'punctuality'];
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +23,15 @@ export default function EventDetailPage() {
   const [comment, setComment] = useState('');
   const [acting, setActing] = useState(false);
   const [actingReq, setActingReq] = useState<string | null>(null);
+
+  // Passcode modal
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [passcode, setPasscode] = useState('');
+
+  // Ratings
+  const [myRatings, setMyRatings] = useState<Record<string, any>>({});
+  const [ratingDraft, setRatingDraft] = useState<Record<string, Record<string, number>>>({});
+  const [submittingRating, setSubmittingRating] = useState<string | null>(null);
 
   const fetchEvent = async () => {
     const r = await fetch(ENDPOINTS.EVENT_BY_ID(id));
@@ -44,31 +55,70 @@ export default function EventDetailPage() {
     Promise.all([fetchEvent(), fetchComments()]).finally(() => setLoading(false));
   }, [id]);
 
+  const fetchMyRatings = async (raterUid: string) => {
+    try {
+      const r = await fetch(ENDPOINTS.MY_EVENT_RATINGS(id, raterUid));
+      const d = await r.json();
+      const map: Record<string, any> = {};
+      for (const rating of (d.data ?? [])) { map[rating.ratedUid] = rating; }
+      setMyRatings(map);
+    } catch {}
+  };
+
   useEffect(() => {
     if (event && user && event.organizerUid === user.uid) fetchRequests(user.uid);
+    if (event && user) fetchMyRatings(user.uid);
   }, [event, user]);
 
   const isParticipant = event?.participants?.some((p: any) => p.uid === user?.uid);
   const isOrganizer = event?.organizerUid === user?.uid;
   const isFull = event?.maxParticipants && event?.participants?.length >= event?.maxParticipants;
 
-  const handleJoin = async () => {
+  const handleJoin = async (enteredPasscode?: string) => {
     if (!user) { router.push('/login'); return; }
+    if (event?.isPrivate && event?.passcode && !enteredPasscode) {
+      setShowPasscode(true); return;
+    }
     setActing(true);
     try {
+      const body: any = { uid: user.uid, name: user.displayName ?? user.email };
+      if (enteredPasscode) body.passcode = enteredPasscode;
       const r = await fetch(ENDPOINTS.JOIN_EVENT(id), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid, name: user.displayName ?? user.email }),
+        body: JSON.stringify(body),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.message);
       toast.success('Joined event!');
+      setShowPasscode(false); setPasscode('');
       await fetchEvent();
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to join');
     } finally {
       setActing(false);
+    }
+  };
+
+  const handleSubmitRating = async (ratedUid: string) => {
+    if (!user) return;
+    const draft = ratingDraft[ratedUid];
+    if (!draft || Object.keys(draft).length === 0) { toast.error('Please select at least one rating'); return; }
+    setSubmittingRating(ratedUid);
+    try {
+      const r = await fetch(ENDPOINTS.SUBMIT_RATING(id, ratedUid), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raterUid: user.uid, ratings: draft }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message);
+      toast.success('Rating submitted!');
+      await fetchMyRatings(user.uid);
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to submit rating');
+    } finally {
+      setSubmittingRating(null);
     }
   };
 
@@ -189,24 +239,42 @@ export default function EventDetailPage() {
         {/* Action button */}
         {!isOrganizer && (
           isParticipant ? (
-            <button
-              onClick={handleLeave}
-              disabled={acting}
-              className="w-full border border-red-300 text-red-600 rounded-xl py-3 font-semibold hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {acting && <Loader2 size={16} className="animate-spin" />}
-              Leave Event
+            <button onClick={handleLeave} disabled={acting}
+              className="w-full border border-red-300 text-red-600 rounded-xl py-3 font-semibold hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+              {acting && <Loader2 size={16} className="animate-spin" />} Leave Event
             </button>
           ) : (
-            <button
-              onClick={handleJoin}
-              disabled={acting || isFull}
-              className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-            >
+            <button onClick={() => handleJoin()} disabled={acting || isFull}
+              className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
               {acting && <Loader2 size={16} className="animate-spin" />}
+              {event.isPrivate && event.passcode && <Lock size={15} />}
               {isFull ? 'Event Full' : 'Join Event'}
             </button>
           )
+        )}
+
+        {/* Passcode modal */}
+        {showPasscode && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+              <h3 className="font-bold text-gray-900 mb-1">Enter Passcode</h3>
+              <p className="text-sm text-gray-500 mb-4">This event requires a passcode to join.</p>
+              <input value={passcode} onChange={e => setPasscode(e.target.value)}
+                placeholder="Enter passcode…" autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleJoin(passcode)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4" />
+              <div className="flex gap-2">
+                <button onClick={() => { setShowPasscode(false); setPasscode(''); }}
+                  className="flex-1 border border-gray-300 text-gray-600 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={() => handleJoin(passcode)} disabled={!passcode.trim() || acting}
+                  className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+                  {acting && <Loader2 size={14} className="animate-spin" />} Join
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -226,6 +294,58 @@ export default function EventDetailPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Player Ratings (post-event, participants only) */}
+      {user && isParticipant && event.date && new Date(event.date) < new Date() && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Star size={18} className="text-amber-400" />
+            <h2 className="font-semibold text-gray-900">Rate Players</h2>
+          </div>
+          <div className="flex flex-col gap-4">
+            {(event.participants ?? []).filter((p: any) => p.uid !== user.uid).map((p: any) => {
+              const alreadyRated = !!myRatings[p.uid];
+              const draft = ratingDraft[p.uid] ?? {};
+              return (
+                <div key={p.uid} className={`border rounded-xl p-4 ${alreadyRated ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold shrink-0">
+                      {(p.name ?? '?')[0].toUpperCase()}
+                    </div>
+                    <span className="font-medium text-sm text-gray-900">{p.name}</span>
+                    {alreadyRated && <span className="ml-auto text-xs text-green-600 font-medium flex items-center gap-1"><Check size={12} /> Rated</span>}
+                  </div>
+                  {!alreadyRated && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        {RATING_CATEGORIES.map(cat => (
+                          <div key={cat}>
+                            <p className="text-xs text-gray-500 mb-1 capitalize">{cat}</p>
+                            <div className="flex gap-1">
+                              {[1,2,3,4,5].map(star => (
+                                <button key={star} type="button"
+                                  onClick={() => setRatingDraft(prev => ({ ...prev, [p.uid]: { ...draft, [cat]: star } }))}
+                                  className={`transition-colors ${(draft[cat] ?? 0) >= star ? 'text-amber-400' : 'text-gray-200'}`}>
+                                  <Star size={18} className="fill-current" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => handleSubmitRating(p.uid)} disabled={submittingRating === p.uid || Object.keys(draft).length === 0}
+                        className="w-full bg-amber-500 text-white rounded-lg py-2 text-sm font-semibold hover:bg-amber-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+                        {submittingRating === p.uid ? <Loader2 size={14} className="animate-spin" /> : null}
+                        Submit Rating
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

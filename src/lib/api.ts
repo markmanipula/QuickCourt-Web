@@ -28,5 +28,7 @@ export const ENDPOINTS = {
   JOIN_LEAGUE_TEAM: (leagueId: string, teamId: string) => `${API_BASE_URL}/leagues/${leagueId}/teams/${teamId}/join`,
   LEAVE_LEAGUE_TEAM: (leagueId: string, teamId: string) => `${API_BASE_URL}/leagues/${leagueId}/teams/${teamId}/leave`,
 
+  SUBMIT_RATING: (eventId: string, ratedUid: string) => `${API_BASE_URL}/events/${eventId}/rate/${ratedUid}`,
   USER_RATINGS: (uid: string) => `${API_BASE_URL}/users/${uid}/ratings`,
+  MY_EVENT_RATINGS: (eventId: string, raterUid: string) => `${API_BASE_URL}/events/${eventId}/my-ratings?raterUid=${raterUid}`,
 };
