@@ -23,7 +23,7 @@ export default function NotificationsPage() {
   }, [user, authLoading]);
 
   useEffect(() => {
-    if (!user) return;
+    if (authLoading || !user) return;
     // Load user's dismissed/read lists from Firestore
     const userRef = doc(db, 'users', user.uid);
     const unsubUser = onSnapshot(userRef, snap => setUserData(snap.data()));

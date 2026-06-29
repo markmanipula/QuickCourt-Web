@@ -3,20 +3,21 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import { LogOut, User, Menu, X, Bell, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!user) { setUnreadCount(0); return; }
+    if (authLoading || !user) { setUnreadCount(0); return; }
     const q = query(collection(db, 'notifications'), where('recipientUid', '==', user.uid));
     const unsubNotif = onSnapshot(q, snap => {
       const allIds = snap.docs.map(d => d.id);
