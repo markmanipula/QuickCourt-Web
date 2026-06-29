@@ -40,7 +40,7 @@ export default function ProfilePage() {
 
     Promise.all([
       fetch(ENDPOINTS.EVENTS).then(r => r.json()).then(d =>
-        (d.data ?? []).filter((e: any) =>
+        (Array.isArray(d) ? d : (d.data ?? [])).filter((e: any) =>
           e.participants?.some((p: any) => p.uid === user.uid) || e.organizerUid === user.uid
         )
       ),

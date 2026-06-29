@@ -19,7 +19,7 @@ export default function EventsPage() {
   useEffect(() => {
     fetch(ENDPOINTS.EVENTS)
       .then(r => r.json())
-      .then(d => setEvents(d.data ?? []))
+      .then(d => setEvents(Array.isArray(d) ? d : (d.data ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
