@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "YOURTEAMID.co.QuickCourt",
+        "appID": "HSC9BH8D46.co.QuickCourt",
         "paths": ["/view-event/*", "/view-league/*"]
       }
     ]
