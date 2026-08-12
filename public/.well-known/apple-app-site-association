@@ -1,10 +1,12 @@
 {
   "applinks": {
-    "apps": [],
     "details": [
       {
-        "appID": "HSC9BH8D46.co.QuickCourt",
-        "paths": ["/view-event/*", "/view-league/*"]
+        "appIDs": ["HSC9BH8D46.co.QuickCourt"],
+        "components": [
+          { "/": "/view-event/*" },
+          { "/": "/view-league/*" }
+        ]
       }
     ]
   }
